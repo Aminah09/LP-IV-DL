@@ -1,0 +1,200 @@
+Certainly! Let's go through the code line by line:
+
+```python
+import matplotlib.pyplot as plt
+import seaborn as sns
+import matplotlib as mpl
+import matplotlib.pylab as pylab
+import numpy as np
+%matplotlib inline
+```
+These lines import various plotting libraries and set up the environment for inline plotting in Jupyter notebooks.
+
+```python
+import re
+
+sentences = """We are about to study the idea of a computational process.
+Computational processes are abstract beings that inhabit computers.
+As they evolve, processes manipulate other abstract things called data.
+The evolution of a process is directed by a pattern of rules
+called a program. People create programs to direct processes. In effect,
+we conjure the spirits of the computer with our spells."""
+```
+This code defines a multiline string containing sentences.
+
+```python
+# remove special characters
+sentences = re.sub('[^A-Za-z0-9]+', ' ', sentences)
+
+# remove 1 letter words
+sentences = re.sub(r'(?:^| )\w(?:$| )', ' ', sentences).strip()
+
+# lower all characters
+sentences = sentences.lower()
+```
+These lines use regular expressions to clean the text data. Special characters are removed, one-letter words are eliminated, and all characters are converted to lowercase.
+
+```python
+words = sentences.split()
+vocab = set(words)
+
+vocab_size = len(vocab)
+embed_dim = 10
+context_size = 2
+```
+This code tokenizes the sentences into words, creates a vocabulary set, and sets dimensions for word embeddings and context size.
+
+```python
+word_to_ix = {word: i for i, word in enumerate(vocab)}
+ix_to_word = {i: word for i, word in enumerate(vocab)}
+```
+These dictionaries map words to indices and vice versa.
+
+```python
+# data - [(context), target]
+
+data = []
+for i in range(2, len(words) - 2):
+    context = [words[i - 2], words[i - 1], words[i + 1], words[i + 2]]
+    target = words[i]
+    data.append((context, target))
+print(data[:5])
+```
+This loop creates the training data by forming pairs of context words and their corresponding target words.
+
+```python
+embeddings =  np.random.random_sample((vocab_size, embed_dim))
+```
+This line initializes word embeddings randomly.
+
+```python
+def linear(m, theta):
+    w = theta
+    return m.dot(w)
+```
+This function performs a linear transformation.
+
+```python
+def log_softmax(x):
+    e_x = np.exp(x - np.max(x))
+    return np.log(e_x / e_x.sum())
+```
+This function computes the log softmax.
+
+```python
+def NLLLoss(logs, targets):
+    out = logs[range(len(targets)), targets]
+    return -out.sum()/len(out)
+```
+This function computes the negative log-likelihood loss.
+
+```python
+def log_softmax_crossentropy_with_logits(logits, target):
+    out = np.zeros_like(logits)
+    out[np.arange(len(logits)), target] = 1
+    softmax = np.exp(logits) / np.exp(logits).sum(axis=-1, keepdims=True)
+    return (- out + softmax) / logits.shape[0]
+```
+This function computes the log softmax cross-entropy loss.
+
+```python
+def forward(context_idxs, theta):
+    m = embeddings[context_idxs].reshape(1, -1)
+    n = linear(m, theta)
+    o = log_softmax(n)
+    return m, n, o
+```
+This function performs the forward pass of the neural network.
+
+```python
+def backward(preds, theta, target_idxs):
+    m, n, o = preds
+    dlog = log_softmax_crossentropy_with_logits(n, target_idxs)
+    dw = m.T.dot(dlog)
+    return dw
+```
+This function computes the gradients during backpropagation.
+
+```python
+def optimize(theta, grad, lr=0.03):
+    theta -= grad * lr
+    return theta
+theta = np.random.uniform(-1, 1, (2 * context_size * embed_dim, vocab_size))
+```
+This function performs optimization by updating the parameters with gradients.
+
+```python
+epoch_losses = {}
+
+for epoch in range(80):
+    losses =  []
+    for context, target in data:
+        context_idxs = np.array([word_to_ix[w] for w in context])
+        preds = forward(context_idxs, theta)
+        target_idxs = np.array([word_to_ix[target]])
+        loss = NLLLoss(preds[-1], target_idxs)
+        losses.append(loss)
+        grad = backward(preds, theta, target_idxs)
+        theta = optimize(theta, grad, lr=0.03)
+    epoch_losses[epoch] = losses
+```
+This loop trains the model for multiple epochs, computing and storing losses.
+
+```python
+ix = np.arange(0, 80)
+
+fig = plt.figure()
+fig.suptitle('Epoch/Losses', fontsize=20)
+plt.plot(ix, [epoch_losses[i][0] for i in ix])
+plt.xlabel('Epochs', fontsize=12)
+plt.ylabel('Losses', fontsize=12)
+```
+This code plots the epoch-wise losses.
+
+```python
+def predict(words):
+    context_idxs = np.array([word_to_ix[w] for w in words])
+    preds = forward(context_idxs, theta)
+    word = ix_to_word[np.argmax(preds[-1])]
+    return word
+
+# (['we', 'are', 'to', 'study'], 'about')
+predict(['we', 'are', 'to', 'study'])
+```
+This function makes predictions given a context of words.
+
+```python
+def accuracy():
+    wrong = 0
+    for context, target in data:
+        if(predict(context) != target):
+            wrong += 1
+    return (1 - (wrong / len(data)))
+
+accuracy()
+```
+This function calculates the accuracy of the model.
+
+```python
+predict(['processes', 'manipulate', 'things', 'study'])
+```
+This line makes a prediction for a specific context.
+
+**Questions:**
+
+1. **What is the purpose of removing special characters and one-letter words in text preprocessing?**
+   - **Answer:** Removing special characters and one-letter words helps to clean the text data and focuses on meaningful words for the model to learn.
+
+2. **How are word embeddings initialized, and why is it essential in natural language processing tasks?**
+   - **Answer:** Word embeddings are initialized randomly. Proper initialization is crucial as it provides the model with an initial set of weights that can be updated during training to capture semantic relationships between words.
+
+3. **What is the significance of the log softmax function in neural network training?**
+   - **Answer:** The log softmax function is used to compute probabilities for each class in a classification task. Taking the logarithm helps with numerical stability and simplifies the computation of the negative log-likelihood loss.
+
+4. **Explain the purpose of the optimization process in the context of training a neural network.**
+   - **Answer:** Optimization is the process of updating model parameters to minimize the loss function. It helps the model learn optimal weights, improving its ability to make accurate predictions.
+
+5. **What does the accuracy function measure in this specific implementation?**
+   - **Answer:** The accuracy function measures how often the model correctly predicts the target words given the context. It provides an evaluation
+
+ metric for the overall performance of the word prediction model.
